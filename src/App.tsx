@@ -1,8 +1,26 @@
 import React from 'react';
+import { BrowserRouter, Switch, Route } from 'react-router-dom';
+import { HomePage, ResultPage, DetailsPage } from './pages';
+import 'bootstrap/dist/css/bootstrap.min.css';
+import { ApiContext } from './contexts/app-context';
+import { ApiService } from './service';
+import { ApiUrls } from './env';
+
+const service = new ApiService(ApiUrls);
 
 function App() {
   return (
-    <div></div>
+    <ApiContext.Provider value={service}>
+      <div className="container">
+        <BrowserRouter>
+          <Switch>
+            <Route exact path="/" component={HomePage} />
+            <Route path="/search/:keyword" component={ResultPage} />
+            <Route path="/character/:id" component={DetailsPage} />
+          </Switch>
+        </BrowserRouter>
+      </div>
+    </ApiContext.Provider>
   );
 }
 
