@@ -1,4 +1,3 @@
-import React from 'react';
 import { IBaseProps, IEpisode } from '../models';
 
 interface IEpisodeProps extends IBaseProps {
@@ -9,14 +8,14 @@ export function EpisodeView(props: IEpisodeProps) {
   return <div className="card">
   <div className="card-body">
     <h5 className="card-title">{props.episode.name}</h5>
-    <p className="card-text">
+    <div className="card-text">
         <dl>
             <dt>Air Date</dt>
             <dd>{props.episode.air_date}</dd>
             <dt>Episode</dt>
             <dd>{props.episode.episode}</dd>
         </dl>
-    </p>
+    </div>
   </div>
 </div>
 }

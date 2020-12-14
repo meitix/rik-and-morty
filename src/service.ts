@@ -1,6 +1,7 @@
 import { ICharacter, ICharacterSearchResult, IEpisode, ISearchService } from './lib';
 import axios from 'axios';
 import { API_DEFAULT_PAGESIZE, PAGE_SIZE } from './env';
+import {isEqual } from 'lodash';
 
 const INITIAL_BUFFER: ICharacterSearchResult = {
   info: { count: 0, pages: 0 },
@@ -8,35 +9,44 @@ const INITIAL_BUFFER: ICharacterSearchResult = {
 };
 
 export class ApiService implements ISearchService {
-  bufferedCharacters: ICharacterSearchResult = INITIAL_BUFFER;
+
+  private bufferedData = {
+    characters: INITIAL_BUFFER,
+    apiPageNumber: 0,
+    filter: {}
+  }
   constructor(protected urls: IApiUrls) {}
 
-  async searchCharacters(title: string, pageNumber = 1, pageSize = PAGE_SIZE): Promise<ICharacterSearchResult> {
+  async searchCharacters(filter: object = {}, pageNumber = 1, pageSize = PAGE_SIZE): Promise<ICharacterSearchResult> {
     const lastItemIndex = pageNumber * pageSize;
     const apiPageNumber = Math.ceil(lastItemIndex / API_DEFAULT_PAGESIZE);
-    // call server if requested data is not buffered
-    if (lastItemIndex > this.bufferedCharacters.results.length) {
-      const res = await axios.get<ICharacterSearchResult>(
-        this.urls.characterUrl + `?name=${title}&page=${apiPageNumber}`
-      );
-      this.bufferedCharacters.results = this.bufferedCharacters.results.concat(res.data.results);
-      this.bufferedCharacters.info = res.data.info;
+
+    if (this.isBufferDeprecated(apiPageNumber, filter)) {
+      await this.bufferRequiredData(filter, apiPageNumber);
     }
 
-    let startIndex = (pageNumber - 1) * pageSize;
-    let endIndex = pageNumber * pageSize;
-    if (this.bufferedCharacters.results.length !== lastItemIndex) {
-      // calculating the gap between requested data and buffered data.
-      const gap = apiPageNumber * API_DEFAULT_PAGESIZE - this.bufferedCharacters.results.length;
-      startIndex = startIndex - gap;
-      endIndex = endIndex - gap;
-    }
-
-    const searchResult = this.bufferedCharacters.results.slice(startIndex, endIndex);
+    const startIndex = ((pageNumber - 1) * pageSize) % API_DEFAULT_PAGESIZE;
+    let endIndex = (pageNumber * pageSize) % API_DEFAULT_PAGESIZE;
+    endIndex = endIndex === 0 ? API_DEFAULT_PAGESIZE : endIndex;
+    
+    const searchResult = this.bufferedData.characters.results.slice(startIndex, endIndex);
     return Promise.resolve({
-      ...this.bufferedCharacters,
+      ...this.bufferedData.characters,
       results: searchResult,
     });
+  }
+
+  private isBufferDeprecated(apiPageNumber: number , filter: object) {
+    return this.bufferedData.apiPageNumber !== apiPageNumber || !isEqual(filter, this.bufferedData.filter);
+  }
+
+  private async bufferRequiredData(filter: object, apiPageNumber: number) {
+    const res = await axios.get<ICharacterSearchResult>(
+      this.urls.characterUrl, { params: { ...filter, page: apiPageNumber } }
+    );
+    this.bufferedData.characters = res.data;
+    this.bufferedData.apiPageNumber = apiPageNumber;
+    this.bufferedData.filter = filter;
   }
 
   async getCharacter(id: number) {

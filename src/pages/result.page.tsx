@@ -1,37 +1,52 @@
 import React, { useContext, useEffect, useState } from 'react';
-import { useHistory, useLocation, useParams } from 'react-router-dom';
+import { Link, useHistory, useLocation, useParams } from 'react-router-dom';
 import { CharacterList } from '../lib/character';
-import { ErrorView } from '../common';
+import { ErrorView, Preloader } from '../common';
 import { ApiContext } from '../contexts/app-context';
 import { ICharacterSearchResult } from '../lib';
 import { AxiosError } from 'axios';
 import ReactPaginate from 'react-paginate';
 import { PAGE_SIZE } from '../env';
-
+import qs from 'qs';
+import {isEmpty} from 'lodash';
 interface IResultPageParams {
   keyword: string;
 }
 
 export function ResultPage() {
-  const params = useParams<IResultPageParams>();
   const location = useLocation();
-  const query = new URLSearchParams(location.search);
-  const pageQuery = query.get('page');
-  const page = parseInt(pageQuery || '1');
-
+  const query = {...qs.parse(location.search.replace('?', '')) as any};
+  const page = parseInt(query.page || '1');
+  delete query.page;
+  const [isLoading, setIsLoading] = useState(true);
   const [searchResult, setSearchResult] = useState<ICharacterSearchResult | null>(null);
   const [error, setError] = useState<AxiosError>();
+
   const service = useContext(ApiContext);
   const history = useHistory();
-
-  useEffect(() => {
+  
+  function fetchData() {
     service
-      ?.searchCharacters(params.keyword, page)
+      ?.searchCharacters({ ...query }, page)
       .then((result) => {
         setSearchResult(result);
       })
-      .catch((e) => setError(e));
-  }, [page, params]);
+      .catch((e) => setError(e))
+      .finally(() => setIsLoading(false));
+  }
+
+  useEffect(() => {
+    fetchData();
+  }, [location]);
+
+  const changePage = (selectedItem: { selected: number }) => {
+    const q = {...query, page: selectedItem.selected + 1};
+    history.push(location.pathname +'?'+ qs.stringify(q));
+  };
+
+  const clearFilter = () => {
+   history.push(location.pathname.concat(`?page=${page}`))
+  }
 
   if (error) {
     console.log(error);
@@ -42,20 +57,23 @@ export function ResultPage() {
     return <div className="text-center">Nothing Found...</div>;
   }
 
-
-  const changePage = (selectedItem: {selected: number}) => {
-    history.push(`${location.pathname}?page=${selectedItem.selected + 1}`,{})
+  if (isLoading) {
+    return <Preloader />;
   }
-
 
   return (
     <>
+    <div className="row mt-5">
+      <div className="col">
+       { !isEmpty(query) && <button className="btn btn-warning float-right" onClick={clearFilter}>Clear Filter</button>}
+        <Link className="btn btn-secondary float-left" to={'/'}>Home</Link>
+      </div>
+    </div>
       <div className="row">
         <CharacterList characters={searchResult?.results} />
       </div>
-      <div className="row">
-      <nav>
-      <ReactPaginate
+      <nav className="mt-5">
+        <ReactPaginate
           previousLabel={'previous'}
           nextLabel={'next'}
           breakLabel={'...'}
@@ -65,8 +83,9 @@ export function ResultPage() {
           marginPagesDisplayed={2}
           pageRangeDisplayed={5}
           onPageChange={changePage}
+          initialPage={page - 1}
           pageClassName={'page-item'}
-          containerClassName={'pagination'}
+          containerClassName={'pagination justify-content-center'}
           activeClassName={'active'}
           pageLinkClassName={'page-link'}
           nextClassName={'page-item'}
@@ -74,8 +93,7 @@ export function ResultPage() {
           previousClassName={'page-item'}
           previousLinkClassName={'page-link'}
         />
-        </nav>
-      </div>
+      </nav>
     </>
   );
 }
